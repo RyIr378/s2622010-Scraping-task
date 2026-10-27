@@ -1,5 +1,3 @@
-"""武蔵野大学の同一ホストのHTMLページを巡回し、URLとtitleをCSVに保存する。"""
-
 import argparse
 import csv
 import json
@@ -13,7 +11,7 @@ from bs4 import BeautifulSoup
 
 START_URL = "https://www.musashino-u.ac.jp/"
 DOMAIN = urlsplit(START_URL).hostname
-# HTMLではないことが明らかなファイルはダウンロードしない。
+
 ASSET_EXTENSIONS = {
     ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico",
     ".css", ".js", ".zip", ".mp3", ".mp4", ".wav", ".mov", ".avi",
@@ -22,7 +20,7 @@ ASSET_EXTENSIONS = {
 
 
 def normalize_url(base_url, href):
-    """相対URLを絶対URLにし、別ホスト・画像等・フラグメントを除く。"""
+
     try:
         parts = urlsplit(urljoin(base_url, href.strip()))
         if parts.scheme not in ("http", "https") or parts.hostname != DOMAIN:
@@ -31,14 +29,14 @@ def normalize_url(base_url, href):
             return None
         if Path(parts.path).suffix.lower() in ASSET_EXTENSIONS:
             return None
-        # クエリは別ページを指すことがあるため残す。#以降だけ取り除く。
+
         return urlunsplit((parts.scheme, parts.netloc.lower(), parts.path or "/", parts.query, ""))
     except ValueError:
         return None
 
 
 def fetch_page(session, url, delay):
-    """リダイレクトや再試行も含め、各HTTPリクエストの前に必ず待つ。"""
+
     redirect_urls = set()
     for _ in range(10):
         if url in redirect_urls:
@@ -80,7 +78,7 @@ def fetch_page(session, url, delay):
 
 
 def save_csv(sitemap, output):
-    """辞書のkeyをURL、valueをtitleとして2列で保存する。"""
+
     output = Path(output)
     temporary = output.with_name(output.name + ".tmp")
     with temporary.open("w", encoding="utf-8-sig", newline="") as file:
@@ -91,11 +89,11 @@ def save_csv(sitemap, output):
 
 
 def crawl(output, state_file, delay, restart=False):
-    """幅優先探索。既に取得・登録したURLには再度アクセスしない。"""
+
     state_path = Path(state_file)
     if state_path.exists() and not restart:
         state = json.loads(state_path.read_text(encoding="utf-8"))
-        sitemap = state["sitemap"]  # key: URL, value: <title>内の文字列
+        sitemap = state["sitemap"]
         url_list = deque(state["pending"])
         visited = set(state["visited"])
         errors = state["errors"]
@@ -148,10 +146,10 @@ def crawl(output, state_file, delay, restart=False):
                                     queued.add(link)
                             visited.add(final_url)
             except requests.RequestException as error:
-                # 本文の読み込みがタイムアウトした場合も、他のページを続ける。
+
                 errors[current_url] = str(error)
             except KeyboardInterrupt:
-                # 処理途中のURLは未完了としてキューに戻す。
+
                 url_list.appendleft(current_url)
                 raise
             visited.add(current_url)
@@ -170,18 +168,18 @@ def crawl(output, state_file, delay, restart=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", default="sitemap.csv", help="保存するCSVファイル")
-    parser.add_argument("--state", default=".crawl-state.json", help="再開用ファイル")
-    parser.add_argument("--delay", type=float, default=1.0, help="各アクセス前の待機秒数（1秒以上）")
-    parser.add_argument("--restart", action="store_true", help="最初から取得し直す")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", default="sitemap.csv")
+    parser.add_argument("--state", default=".crawl-state.json")
+    parser.add_argument("--delay", type=float, default=1.0)
+    parser.add_argument("--restart", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.delay < float("inf"):
         parser.error("--delay は1秒以上の有限の値を指定してください")
     try:
         crawl(args.output, args.state, args.delay, args.restart)
     except KeyboardInterrupt:
-        print("中断しました。同じコマンドで再開できます。")
+        print("Interrupted")
         raise SystemExit(130)
 
 
